@@ -1,0 +1,6 @@
+{
+  "name": "Aegris System",
+  "description": "Solo Leveling inspired Vessel and Shadow system dashboard with full real-time exercise quotas, attributes level up, AP and Gold market upgrades.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
