@@ -22,7 +22,7 @@ jobs:
         run: ./gradlew assembleDebug
 
       - name: Upload The SYSTEM APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4  # <-- هنا التعديل يا بطل
         with:
           name: The-SYSTEM-Alpha
           path: app/build/outputs/apk/debug/*.apk
