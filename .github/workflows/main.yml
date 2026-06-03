@@ -1,0 +1,28 @@
+name: Build The SYSTEM
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew assembleDebug
+
+      - name: Upload The SYSTEM APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: The-SYSTEM-Alpha
+          path: app/build/outputs/apk/debug/*.apk
