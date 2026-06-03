@@ -52,33 +52,54 @@ fun MainAppLayout() {
     val viewModel: VesselViewModel = viewModel()
     val statsState = viewModel.userStats.collectAsState()
     val isPenaltyActive by viewModel.isPenaltyActive.collectAsState()
+    val newlyUnlockedTitle by viewModel.newlyUnlockedTitle.collectAsState()
+    val aegisTaskId by viewModel.showAegisVerification.collectAsState()
+    val aegisType by viewModel.aegisExerciseType.collectAsState()
+    val aegisReps by viewModel.aegisTargetReps.collectAsState()
+    val aegisIsShameMode by viewModel.aegisIsShameMode.collectAsState()
+    val aegisIsDoubtShadowActive by viewModel.aegisIsDoubtShadowActive.collectAsState()
     var currentTab by remember { mutableStateOf("SYSTEM") }
+    var showTitlesScreen by remember { mutableStateOf(false) }
+    var showLivesStreakScreen by remember { mutableStateOf(false) }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var isSetupCompleted by remember {
+        mutableStateOf(
+            context.getSharedPreferences("aegis_prefs", android.content.Context.MODE_PRIVATE)
+                .getBoolean("is_setup_completed", false)
+        )
+    }
+
+    val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+    val stats = statsState.value
+    
+    val showFateScreen = stats?.lastFateDrawnDate != todayStr && stats != null
+    val showStreakBrokenMenu = stats?.hasStreakBrokenToday == true
+    val showSystemOverride = stats?.isSystemOverridePending == true
 
     Scaffold(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(SoloBackground),
+        modifier = Modifier.fillMaxSize(),
+        containerColor = SoloBackground,
         bottomBar = {
-            if (!isPenaltyActive) {
+            if (isSetupCompleted && !isPenaltyActive && !showTitlesScreen && !showFateScreen && !showStreakBrokenMenu && !showSystemOverride && !showLivesStreakScreen) {
                 CustomBottomNavigationBar(
                     currentTab = currentTab,
-                    onTabSelected = { currentTab = it }
+                    onTabSelected = { currentTab = it },
+                    viewModel = viewModel
                 )
             }
         },
-        contentWindowInsets = WindowInsets.systemBars
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { innerPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(SoloBackground)
-                .padding(bottom = if (isPenaltyActive) 0.dp else innerPadding.calculateBottomPadding())
+                .padding(bottom = if (!isSetupCompleted || isPenaltyActive || showTitlesScreen || showSystemOverride || showStreakBrokenMenu || showLivesStreakScreen) 0.dp else innerPadding.calculateBottomPadding())
                 .statusBarsPadding()
         ) {
             val stats = statsState.value
-            if (isPenaltyActive) {
-                PenaltyScreen(viewModel = viewModel)
-            } else if (stats == null) {
+            if (stats == null) {
                 // Loading screen representing System Awakening
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -98,19 +119,153 @@ fun MainAppLayout() {
                         )
                     }
                 }
+            } else if (!isSetupCompleted) {
+                com.example.ui.screens.PlayerSetupScreen(
+                    viewModel = viewModel,
+                    onComplete = { isSetupCompleted = true }
+                )
+            } else if (isPenaltyActive) {
+                PenaltyScreen(viewModel = viewModel)
+            } else if (showSystemOverride) {
+                com.example.ui.screens.SystemOverrideScreen(viewModel = viewModel)
+            } else if (showStreakBrokenMenu) {
+                com.example.ui.screens.StreakBrokenScreen(viewModel = viewModel, stats = stats)
+            } else if (showFateScreen) {
+                com.example.ui.screens.FateDrawScreen(
+                    viewModel = viewModel,
+                    onAccept = {
+                        // Automatically handled by viewmodel
+                    }
+                )
+            } else if (showTitlesScreen) {
+                TitlesScreen(
+                    viewModel = viewModel,
+                    stats = stats,
+                    onClose = { showTitlesScreen = false }
+                )
+            } else if (showLivesStreakScreen) {
+                com.example.ui.screens.LivesStreakScreen(
+                    viewModel = viewModel,
+                    stats = stats,
+                    onClose = { showLivesStreakScreen = false }
+                )
             } else {
                 // Screen routers
-                when (currentTab) {
-                    "INTEL" -> IntelScreen(viewModel = viewModel, stats = stats)
-                    "MARKET" -> MarketScreen(viewModel = viewModel, stats = stats)
-                    "HUNTER" -> HunterScreen(viewModel = viewModel, stats = stats)
-                    "RAIDS" -> RaidsScreen(viewModel = viewModel, stats = stats)
-                    "SYSTEM" -> SystemScreen(
-                        viewModel = viewModel,
-                        stats = stats,
-                        onNavigateToRaids = { currentTab = "RAIDS" }
-                    )
+                    when (currentTab) {
+                        "LIVES" -> com.example.ui.screens.LivesStreakScreen(viewModel = viewModel, stats = stats, onClose = { currentTab = "SYSTEM" })
+                        "JOURNAL" -> com.example.ui.screens.JournalScreen(viewModel = viewModel)
+                        "INTEL" -> IntelScreen(viewModel = viewModel, stats = stats)
+                        "MARKET" -> MarketScreen(viewModel = viewModel, stats = stats)
+                        "HUNTER" -> HunterScreen(viewModel = viewModel, stats = stats)
+                        "RAIDS" -> RaidsScreen(viewModel = viewModel, stats = stats)
+                        "SYSTEM" -> SystemScreen(
+                            viewModel = viewModel,
+                            stats = stats,
+                            onNavigateToRaids = { currentTab = "RAIDS" },
+                            onNavigateToTitles = { showTitlesScreen = true }
+                        )
+                    }
+            }
+
+            // Display Title Unlock notification dialog on top
+            newlyUnlockedTitle?.let { title ->
+                TitleUnlockScreen(
+                    title = title,
+                    onEquip = { viewModel.equipTitle(title.id) },
+                    onDismiss = { viewModel.dismissTitleUnlock() }
+                )
+            }
+
+            // --- AEGIS EYE ACTIVE OVERLAYS & VERIFICATION SCREEN ---
+            
+            // 1. Grayscale Shame Mode Banner
+            if (aegisIsShameMode) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF2B0B14))
+                        .border(1.dp, Color(0xFFFF0044))
+                        .statusBarsPadding()
+                        .padding(10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = "Shame Mode",
+                            tint = Color(0xFFFF0044),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "🚨 نمط العار نشط: تم رصد تكرارات غير نقية في حركة الوعاء!",
+                            color = Color(0xFFFFCCDD),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
+            }
+
+            // 2. Doubt Shadow Vignette Floating Warning
+            if (aegisIsDoubtShadowActive) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            androidx.compose.ui.graphics.Brush.radialGradient(
+                                colors = listOf(Color.Transparent, Color(0xDD120215), Color(0xFB010005)),
+                                center = androidx.compose.ui.geometry.Offset.Unspecified,
+                                radius = 900f
+                            )
+                        )
+                        .clickable { viewModel.aegisIsDoubtShadowActive.value = false },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .padding(24.dp)
+                            .background(Color(0xFF16081B), RoundedCornerShape(12.dp))
+                            .border(1.dp, Color(0xFF8B00FF), RoundedCornerShape(12.dp))
+                            .padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Visibility,
+                            contentDescription = "Doubt Shadow",
+                            tint = Color(0xFFC084FC),
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "👁️ ظل الشك يحوم فوق الوعاء",
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "تقوم شبكة عين أغريس بفرض رقابة ثنائية للتحقق من سلامة الأنباض الكهرومغناطيسية وحركات الجسد للوعاء.",
+                            color = Color(0xFFD8B4FE),
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+
+            // 3. Fullscreen Aegis Eye Circle of Truth Verification
+            aegisTaskId?.let { taskId ->
+                com.example.ui.screens.ExerciseVerificationScreen(
+                    viewModel = viewModel,
+                    taskId = taskId,
+                    exerciseType = aegisType,
+                    targetReps = aegisReps,
+                    onDismiss = { viewModel.showAegisVerification.value = null }
+                )
             }
         }
     }
@@ -119,106 +274,104 @@ fun MainAppLayout() {
 @Composable
 fun CustomBottomNavigationBar(
     currentTab: String,
-    onTabSelected: (String) -> Unit
+    onTabSelected: (String) -> Unit,
+    viewModel: VesselViewModel
 ) {
-    // Custom flat bottom nav mimicking the images
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFF06070B)) // Darker absolute black for navigation contrast
-            .navigationBarsPadding() // Preserve navigation bars inset padding for accessibility
+    val gatesList by viewModel.gates.collectAsState()
+    val uncompletedCount = remember(gatesList) {
+        gatesList.count { !it.isCompleted && System.currentTimeMillis() < it.expiryTime }
+    }
+
+    val tabsList = listOf(
+        NavigationTabItem("JOURNAL", "اليوميات"),
+        NavigationTabItem("LIVES", "القلوب"),
+        NavigationTabItem("INTEL", "السجلات"),
+        NavigationTabItem("MARKET", "المتجر"),
+        NavigationTabItem("HUNTER", "البطل"),
+        NavigationTabItem("RAIDS", "البوابات"),
+        NavigationTabItem("SYSTEM", "النظام")
+    )
+
+    NavigationBar(
+        containerColor = Color(0xFF06070B),
+        contentColor = SoloMutedText,
+        tonalElevation = 0.dp,
+        windowInsets = WindowInsets.navigationBars
     ) {
-        // High contrast layout divider line
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(0.5.dp)
-                .background(Color(0xFF1E293B))
-        )
+        tabsList.forEach { item ->
+            val isActive = currentTab == item.id
+            val tabColor = if (isActive) SoloPrimaryCyan else SoloMutedText
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp)
-                .padding(horizontal = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val tabsList = listOf(
-                NavigationTabItem("INTEL", "INTEL"),
-                NavigationTabItem("MARKET", "MARKET"),
-                NavigationTabItem("HUNTER", "HUNTER"),
-                NavigationTabItem("RAIDS", "RAIDS"),
-                NavigationTabItem("SYSTEM", "SYSTEM")
-            )
+            val iconVector = when (item.id) {
+                "JOURNAL" -> Icons.Default.DateRange
+                "LIVES" -> Icons.Default.Favorite
+                "INTEL" -> Icons.Default.Info
+                "MARKET" -> Icons.Default.ShoppingBag
+                "HUNTER" -> Icons.Default.Person
+                "RAIDS" -> Icons.Default.Cyclone
+                "SYSTEM" -> Icons.Default.Home
+                else -> Icons.Default.Home
+            }
 
-            tabsList.forEach { item ->
-                val isActive = currentTab == item.id
-                val tabColor = if (isActive) SoloPrimaryCyan else SoloMutedText
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .clickable { onTabSelected(item.id) }
-                        .testTag("nav_tab_${item.id.lowercase()}"),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    // Small active glow pill bar indicator on top of icon
-                    Box(
-                        modifier = Modifier
-                            .width(28.dp)
-                            .height(3.dp)
-                            .clip(RoundedCornerShape(1.5.dp))
-                            .background(if (isActive) SoloPrimaryCyan else Color.Transparent)
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // Stylized item icons
-                    if (item.id == "INTEL") {
-                        // The stylized N icon
-                        val intelBorderColor = if (isActive) SoloPrimaryCyan else SoloMutedText.copy(alpha = 0.5f)
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .border(BorderStroke(1.2.dp, intelBorderColor), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "N",
-                                color = tabColor,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+            NavigationBarItem(
+                selected = isActive,
+                onClick = { 
+                    android.util.Log.d("VesselNav", "Submitting navigation to: ${item.id}")
+                    onTabSelected(item.id) 
+                },
+                icon = {
+                    Box(contentAlignment = Alignment.TopEnd) {
+                        if (item.id == "INTEL") {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .border(BorderStroke(1.2.dp, if (isActive) SoloPrimaryCyan else SoloMutedText.copy(alpha=0.5f)), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(text = "N", color = tabColor, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        } else {
+                            Icon(imageVector = iconVector, contentDescription = item.label, modifier = Modifier.size(22.dp))
                         }
-                    } else {
-                        val vector = when (item.id) {
-                            "MARKET" -> Icons.Default.ShoppingBag
-                            "HUNTER" -> Icons.Default.Person
-                            "RAIDS" -> Icons.Default.Cyclone // Daggers representation
-                            else -> Icons.Default.Home
+                        
+                        if (item.id == "RAIDS" && uncompletedCount > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .offset(x = 6.dp, y = (-4).dp)
+                                    .size(14.dp)
+                                    .background(Color(0xFFEF4444), CircleShape)
+                                    .border(BorderStroke(1.dp, Color.Black), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = uncompletedCount.toString(),
+                                    color = Color.White,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
                         }
-                        Icon(
-                            imageVector = vector,
-                            contentDescription = item.label,
-                            tint = tabColor,
-                            modifier = Modifier.size(22.dp)
-                        )
                     }
-
-                    Spacer(modifier = Modifier.height(3.dp))
-
+                },
+                label = {
                     Text(
                         text = item.label,
                         color = tabColor,
-                        fontSize = 9.sp,
+                        fontSize = 10.sp,
                         fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                        letterSpacing = 0.5.sp
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
-                }
-            }
+                },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = SoloPrimaryCyan,
+                    selectedTextColor = SoloPrimaryCyan,
+                    unselectedIconColor = SoloMutedText,
+                    unselectedTextColor = SoloMutedText,
+                    indicatorColor = SoloPrimaryCyan.copy(alpha = 0.15f)
+                ),
+                alwaysShowLabel = false
+            )
         }
     }
 }

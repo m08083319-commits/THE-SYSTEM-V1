@@ -38,6 +38,7 @@ fun HunterScreen(viewModel: VesselViewModel, stats: UserStats) {
     var selectedAchievementTab by remember { mutableStateOf("ALL") }
     val shadowSoldiers by viewModel.shadows.collectAsState()
     var showShadowsScreen by remember { mutableStateOf(false) }
+    var isEditingName by remember { mutableStateOf(false) }
 
     val achievements = listOf(
         AchievementItem("Sovereign of Light", "سيد الضوء", "LEGENDARY RANK PROTOCOL", "Condition: نجاح بنسبة 100% في بروتوكول الفجر لمدة أسبوع", "RARE", isLocked = true),
@@ -45,6 +46,55 @@ fun HunterScreen(viewModel: VesselViewModel, stats: UserStats) {
         AchievementItem("Dungeon Sweeper", "كاسح المغارات", "ELITE RANK PROTOCOL", "Condition: إكمال 15 تمرين يومي بنجاح تام", "UNCOMMON", isLocked = stats.streak < 5),
         AchievementItem("First Awakening", "الصحوة الأولى", "BASIC RANK PROTOCOL", "Condition: إكمال أول خطوة في النظام بنجاح", "COMMON", isLocked = false)
     )
+
+    // Name Editing Dialog
+    if (isEditingName) {
+        var tempName by remember { mutableStateOf(stats.username) }
+        AlertDialog(
+            onDismissRequest = { isEditingName = false },
+            title = { Text("تعديل اسم الصياد / RENAME PROTOCOL", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("أدخل اسم الكود الجديد للصياد:", color = SoloMutedText, fontSize = 12.sp)
+                    TextField(
+                        value = tempName,
+                        onValueChange = { tempName = it },
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = SoloCardBg,
+                            unfocusedContainerColor = SoloCardBg,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedIndicatorColor = SoloPrimaryCyan,
+                            unfocusedIndicatorColor = SoloBorderSlate
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("edit_hunter_name_input")
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val nameStr = tempName.trim()
+                        if (nameStr.isNotEmpty()) {
+                            viewModel.updateUsername(nameStr)
+                        }
+                        isEditingName = false
+                    }
+                ) {
+                    Text("حفظ / CONFIRM", color = SoloPrimaryCyan, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { isEditingName = false }) {
+                    Text("إلغاء / CANCEL", color = SoloMutedText)
+                }
+            },
+            containerColor = SoloCardBg,
+            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier.border(BorderStroke(1.dp, SoloBorderSlate), RoundedCornerShape(24.dp))
+        )
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -67,7 +117,6 @@ fun HunterScreen(viewModel: VesselViewModel, stats: UserStats) {
                     .border(BorderStroke(1.dp, SoloBorderSlate), RoundedCornerShape(24.dp))
                     .padding(20.dp)
             ) {
-                // Background circle decals or design
                 Column(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
@@ -80,13 +129,14 @@ fun HunterScreen(viewModel: VesselViewModel, stats: UserStats) {
                         Column {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.clickable { isEditingName = true }
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Edit,
                                     contentDescription = "Edit Profile",
                                     tint = SoloMutedText,
-                                    modifier = Modifier.size(14.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
                                 Text(
                                     text = stats.username,
@@ -140,7 +190,7 @@ fun HunterScreen(viewModel: VesselViewModel, stats: UserStats) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.Bottom
                     ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(
                                 text = "XP PROGRESS",
                                 color = SoloMutedText,
@@ -154,12 +204,22 @@ fun HunterScreen(viewModel: VesselViewModel, stats: UserStats) {
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Black
                             )
-                            Text(
-                                text = "RANK E • HUNTER",
-                                color = SoloMutedText,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            
+                            // Stylized Military-like Badge for Rank
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(stats.rankColor).copy(alpha = 0.15f))
+                                    .border(BorderStroke(1.dp, Color(stats.rankColor)), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                            ) {
+                                Text(
+                                    text = "RANK ${stats.rank} • ${stats.rankArabicTitle}",
+                                    color = Color(stats.rankColor),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
                         }
 
                         Text(
@@ -171,7 +231,7 @@ fun HunterScreen(viewModel: VesselViewModel, stats: UserStats) {
                     }
 
                     // Bottom progress track
-                    Column {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         val animatedProgress by animateFloatAsState(
                             targetValue = (stats.xp.toFloat() / stats.maxXp.toFloat()).coerceIn(0f, 1f),
                             label = "xp_bar"
@@ -194,7 +254,7 @@ fun HunterScreen(viewModel: VesselViewModel, stats: UserStats) {
                                     )
                             )
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
+                        
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -212,6 +272,64 @@ fun HunterScreen(viewModel: VesselViewModel, stats: UserStats) {
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold
                             )
+                        }
+                    }
+
+                    // Divider
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(SoloBorderSlate)
+                    )
+
+                    // Secondary Meta Indicators (Unlocked Titles & Arisen Shadows)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        val unlockedTitlesCount = stats.unlockedTitles.split(",").filter { it.trim().isNotEmpty() }.size
+                        val arisenShadowsCount = shadowSoldiers.filter { it.level > 0 }.size
+
+                        // Badges for stats
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(SoloCardBg.copy(alpha = 0.5f))
+                                .border(BorderStroke(1.dp, SoloBorderSlate), RoundedCornerShape(12.dp))
+                                .padding(10.dp)
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("الألقاب المفتوحة / TITLES", color = SoloMutedText, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(imageVector = Icons.Default.EmojiEvents, contentDescription = null, tint = SoloGold, modifier = Modifier.size(16.dp))
+                                    Text("$unlockedTitlesCount لقب نشط", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Black)
+                                }
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(SoloCardBg.copy(alpha = 0.5f))
+                                .border(BorderStroke(1.dp, SoloBorderSlate), RoundedCornerShape(12.dp))
+                                .padding(10.dp)
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("الظلال المستدعاة / SHADOWS", color = SoloMutedText, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null, tint = Color(0xFFA55EFF), modifier = Modifier.size(16.dp))
+                                    Text("$arisenShadowsCount ظل محرر", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Black)
+                                }
+                            }
                         }
                     }
                 }
@@ -510,12 +628,10 @@ fun HunterScreen(viewModel: VesselViewModel, stats: UserStats) {
     }
 
     if (showShadowsScreen) {
-        ShadowMonarchSanctuary(
+        ShadowsScreen(
+            viewModel = viewModel,
             stats = stats,
-            shadows = shadowSoldiers,
-            onClose = { showShadowsScreen = false },
-            onExtract = { viewModel.extractShadow(it) },
-            onUpgrade = { viewModel.upgradeShadow(it) }
+            onBack = { showShadowsScreen = false }
         )
     }
 }

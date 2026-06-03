@@ -11,9 +11,12 @@ import androidx.room.RoomDatabase
         ExerciseTask::class,
         Item::class,
         ActivityLog::class,
-        ShadowSoldier::class
+        ShadowSoldier::class,
+        Gate::class,
+        SideQuest::class,
+        DailyJournalEntry::class
     ],
-    version = 2,
+    version = 10,
     exportSchema = false
 )
 abstract class VesselDatabase : RoomDatabase() {

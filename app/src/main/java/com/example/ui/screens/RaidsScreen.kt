@@ -29,6 +29,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.ExerciseTask
 import com.example.data.UserStats
+import com.example.data.Gate
+import com.example.data.SideQuest
+import androidx.activity.compose.BackHandler
 import com.example.ui.VesselViewModel
 import com.example.ui.theme.*
 import kotlinx.coroutines.delay
@@ -49,6 +52,10 @@ import androidx.compose.foundation.Canvas
 fun RaidsScreen(viewModel: VesselViewModel, stats: UserStats) {
     var selectedTab by remember { mutableStateOf("DAILY QUOTA") }
     val tasks by viewModel.exercises.collectAsState()
+    val gatesList by viewModel.gates.collectAsState()
+    val sideQuestsList by viewModel.sideQuests.collectAsState()
+    val remainingGateEnergy by viewModel.remainingGateEnergy.collectAsState()
+    val gatesEnteredToday by viewModel.gatesEnteredToday.collectAsState()
 
     var activeExerciseForSensor by remember { mutableStateOf<ExerciseTask?>(null) }
 
@@ -322,212 +329,471 @@ fun RaidsScreen(viewModel: VesselViewModel, stats: UserStats) {
                 }
             }
         } else {
-            // GATES tab view (Living Dungeons Giga Boss Fight)
-            val dungeonMood by viewModel.dungeonMood.collectAsState()
-            val dungeonBossName by viewModel.dungeonBossName.collectAsState()
-            val dungeonBossHp by viewModel.dungeonBossHp.collectAsState()
-            val dungeonBossMaxHp by viewModel.dungeonBossMaxHp.collectAsState()
+            // GATES and SIDE QUESTS Tab
+            var gatesSubTab by remember { mutableStateOf("GATES_LIST") }
+            var activeBattleGate by remember { mutableStateOf<Gate?>(null) }
             
-            val (moodColor, moodArabic, moodDesc) = when (dungeonMood) {
-                "ANGRY" -> Triple(Color(0xFFEF4444), "غاضبة (صعوبة مضاعفة 2x مكافآت)", "تم رصد موجات طاقة غاضبة! الخصم أشرس والجوائز مضاعفة 2x!")
-                "SLEEPING" -> Triple(Color(0xFF3B82F6), "نائمة (صعوبة معتدلة)", "بوابة نوم هادئ. قتال عادي مع مكافآت ثابتة.")
-                "HUNGRY" -> Triple(Color(0xFFF97316), "جائعة (تطلب قربان 50 AP)", "البوابة تطلب التضحية بقربان 50 AP لحصد غنائمها!")
-                "GENEROUS" -> Triple(Color(0xFF10B981), "سخية (مكافأة مضاعفة مجانية)", "البوابة تهب الكنوز السخية مجاناً دون زيادة الخطورة!")
-                else -> Triple(Color(0xFFA55EFF), "أسطورية (الحارس الأعظم)", "تم استدعاء وحش أسطوري! مكافأة خرافية بانتظار قاهري الرقابة.")
+            // Ticking state to trigger real-time countdown recompositions
+            var tickingTime by remember { mutableStateOf(System.currentTimeMillis()) }
+            LaunchedEffect(key1 = true) {
+                while (true) {
+                    delay(1000)
+                    tickingTime = System.currentTimeMillis()
+                }
+            }
+            
+            // Check if there's any currently entered gate. If so, put the player straight into it (no retreat!)
+            val currentlyEnteredGate = gatesList.find { it.isEntered }
+            if (currentlyEnteredGate != null) {
+                activeBattleGate = currentlyEnteredGate
             }
 
-            val bossEmoji = when (dungeonBossName) {
-                "WHITE WEREWOLF" -> "🐺 ذئب الهاوية الأبيض (White Werewolf)"
-                "STONE GOLEM" -> "🧌 غولم الحجر الملعون (Stone Golem)"
-                "EVIL EYE" -> "👁️ العين الشريرة الحارسة (Evil Eye)"
-                else -> "💀 ملك الموتى الحارس الأعظم (King of Death)"
-            }
-
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(bottom = 80.dp)
-            ) {
-                item {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Box(
+            if (activeBattleGate != null) {
+                GateBattleScreen(
+                    gate = activeBattleGate!!,
+                    viewModel = viewModel,
+                    onClose = { activeBattleGate = null }
+                )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Sub-tab selection bar
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(24.dp))
+                            .clip(RoundedCornerShape(12.dp))
                             .background(SoloCardBg)
-                            .border(BorderStroke(1.dp, moodColor), RoundedCornerShape(24.dp))
-                            .padding(20.dp)
+                            .border(BorderStroke(1.dp, SoloBorderSlate), RoundedCornerShape(12.dp))
                     ) {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { gatesSubTab = "GATES_LIST" }
+                                .background(if (gatesSubTab == "GATES_LIST") SoloPrimaryCyan.copy(alpha = 0.15f) else Color.Transparent)
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            // Mood capsule
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(moodColor.copy(alpha = 0.15f))
-                                    .border(BorderStroke(1.dp, moodColor), RoundedCornerShape(12.dp))
-                                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    text = "مزاج المغارة: $moodArabic",
-                                    color = moodColor,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-
                             Text(
-                                text = "LIVING PORTALS GATE ACTIVE",
-                                color = Color.White,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
+                                text = "البوابات اليومية",
+                                color = if (gatesSubTab == "GATES_LIST") SoloPrimaryCyan else SoloMutedText,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
                             )
+                        }
 
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { gatesSubTab = "SIDE_QUESTS" }
+                                .background(if (gatesSubTab == "SIDE_QUESTS") SoloPrimaryCyan.copy(alpha = 0.15f) else Color.Transparent)
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Text(
-                                text = moodDesc,
-                                color = SoloMutedText,
-                                fontSize = 12.sp,
-                                textAlign = TextAlign.Center,
-                                lineHeight = 18.sp,
-                                modifier = Modifier.padding(horizontal = 10.dp)
+                                text = "المهام الجانبية",
+                                color = if (gatesSubTab == "SIDE_QUESTS") SoloPrimaryCyan else SoloMutedText,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
-                }
 
-                // Monster Boss Pod
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = SoloCardBg),
-                        border = BorderStroke(1.dp, SoloBorderSlate),
-                        shape = RoundedCornerShape(24.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(20.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                    if (gatesSubTab == "GATES_LIST") {
+                        // Energy Panel
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = SoloCardBg),
+                            border = BorderStroke(1.dp, SoloBorderSlate),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(
-                                text = "ACTIVE GATE GUARDIAN",
-                                color = SoloMutedText,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
-                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "طاقة بوابات المغارة",
+                                        color = Color.White,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "تتجدد تلقائياً عند منتصف الليل",
+                                        color = SoloMutedText,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    repeat(5) { idx ->
+                                        val hasEnergy = idx < remainingGateEnergy
+                                        Icon(
+                                            imageVector = Icons.Default.Bolt,
+                                            contentDescription = "Energy Gate Status",
+                                            tint = if (hasEnergy) SoloPrimaryCyan else Color(0xFF1E293B),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "$remainingGateEnergy/5",
+                                        color = SoloPrimaryCyan,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                }
+                            }
+                        }
 
-                            // Giant monster avatar
+                        // Gates list or empty trigger
+                        if (gatesList.isEmpty()) {
                             Box(
                                 modifier = Modifier
-                                    .size(100.dp)
-                                    .background(moodColor.copy(alpha = 0.05f), CircleShape)
-                                    .border(BorderStroke(1.dp, moodColor.copy(alpha = 0.3f)), CircleShape),
+                                    .fillMaxWidth()
+                                    .padding(vertical = 40.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                val pulseScale = rememberInfiniteTransition().animateFloat(
-                                    initialValue = 0.9f,
-                                    targetValue = 1.1f,
-                                    animationSpec = infiniteRepeatable(
-                                        animation = tween(1000, easing = LinearOutSlowInEasing),
-                                        repeatMode = RepeatMode.Reverse
-                                    ),
-                                    label = "boss_pulse"
-                                )
-                                Text(
-                                    text = bossEmoji.take(2),
-                                    fontSize = (48f * pulseScale.value).sp
-                                )
-                            }
-
-                            Text(
-                                text = bossEmoji.drop(2),
-                                color = Color.White,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                textAlign = TextAlign.Center
-                            )
-
-                            // Boss HP state gauge
-                            Column {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "BOSS HP: $dungeonBossHp/$dungeonBossMaxHp",
-                                        color = moodColor,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    val percent = ((dungeonBossHp.toFloat() / dungeonBossMaxHp.toFloat()) * 100).toInt()
-                                    Text(
-                                        text = "$percent%",
-                                        color = Color.White,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                val animatedHp by animateFloatAsState(
-                                    targetValue = dungeonBossHp.toFloat() / dungeonBossMaxHp.toFloat(),
-                                    animationSpec = tween(400)
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(10.dp)
-                                        .clip(CircleShape)
-                                        .background(SoloBorderSlate)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth(animatedHp)
-                                            .fillMaxHeight()
-                                            .background(moodColor)
-                                    )
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("لا توجد بوابات نشطة حالياً", color = SoloMutedText, fontSize = 14.sp)
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Button(
+                                        onClick = { viewModel.resetDaily() },
+                                        colors = ButtonDefaults.buttonColors(containerColor = SoloPrimaryCyan)
+                                    ) {
+                                        Text("توليد البوابات اليومية", color = Color.Black, fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            // Strike buttons
-                            val strikePower = 10 + (stats.str * 2) + (stats.agi)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxWidth().heightIn(max = 600.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                contentPadding = PaddingValues(bottom = 80.dp)
                             ) {
-                                Button(
-                                    onClick = { 
-                                        if (dungeonMood == "HUNGRY" && dungeonBossHp == dungeonBossMaxHp) {
-                                            val valid = viewModel.payDungeonEntrance()
-                                            if (valid) viewModel.attackDungeonBoss(strikePower)
-                                        } else {
-                                            viewModel.attackDungeonBoss(strikePower)
+                                items(gatesList) { gate ->
+                                    val gateColor = getGateRankColor(gate.rank)
+                                    
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = SoloCardBg),
+                                        border = BorderStroke(1.dp, if (gate.isEntered) gateColor else SoloBorderSlate),
+                                        modifier = Modifier.fillMaxWidth().testTag("gate_${gate.id}")
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(14.dp),
+                                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column {
+                                                    Text(
+                                                        text = gate.name,
+                                                        color = Color.White,
+                                                        fontSize = 15.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(
+                                                        text = "الحارس: ${gate.guardianName}",
+                                                        color = SoloMutedText,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Medium
+                                                    )
+                                                }
+                                                // Rank Badge
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(6.dp))
+                                                        .background(gateColor.copy(alpha = 0.15f))
+                                                        .border(BorderStroke(1.dp, gateColor), RoundedCornerShape(6.dp))
+                                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "رتبة ${gate.rank}",
+                                                        color = gateColor,
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+
+                                            Divider(color = SoloBorderSlate.copy(alpha = 0.5f))
+
+                                            // Description / Challenge requirements
+                                            Column {
+                                                Text(
+                                                    text = gate.challengeDescription,
+                                                    color = SoloMutedText,
+                                                    fontSize = 12.sp
+                                                )
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = "المطلوب: ${gate.challengeReps} ${gate.challengeUnit}",
+                                                    color = SoloPrimaryCyan,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                if (gate.weaknessName != null) {
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = "نقطة الضعف: ${gate.weaknessName} (${gate.weaknessReps} ${gate.weaknessExercise})",
+                                                        color = SoloGold,
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Medium
+                                                    )
+                                                }
+                                            }
+
+                                            // Countdown
+                                            val currentNow = tickingTime
+                                            val timeLeft = (gate.expiryTime - currentNow).coerceAtLeast(0)
+                                            val isExpired = timeLeft == 0L
+                                            
+                                            val hours = timeLeft / (1000 * 3600)
+                                            val minutes = (timeLeft % (1000 * 3600)) / (1000 * 60)
+                                            val seconds = (timeLeft % (1000 * 60)) / 1000
+                                            val countdownString = String.format("%02d:%02d:%02d", hours, minutes, seconds)
+
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                // Rewards list
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = "⭐ ${gate.baseXPReward} XP",
+                                                        color = Color(0xFFA55EFF),
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(
+                                                        text = "🪙 ${gate.baseGoldReward}G",
+                                                        color = SoloGold,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(
+                                                        text = "⚡ ${gate.baseAPReward} AP",
+                                                        color = SoloPrimaryCyan,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+
+                                                // Time Left Countdown
+                                                Text(
+                                                    text = if (isExpired) "انتهى الوقت" else "ينتهي في: $countdownString",
+                                                    color = if (isExpired) Color.Red else SoloMutedText,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            }
+
+                                            // Action button
+                                            when {
+                                                gate.isCompleted -> {
+                                                    Button(
+                                                        onClick = { },
+                                                        enabled = false,
+                                                        colors = ButtonDefaults.buttonColors(
+                                                            disabledContainerColor = Color(0xFF0F172A),
+                                                            disabledContentColor = Color(0xFF10B981)
+                                                        ),
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    ) {
+                                                        Text("✓ تم تطهير البوابة بنجاح", fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+                                                isExpired -> {
+                                                    Button(
+                                                        onClick = { },
+                                                        enabled = false,
+                                                        colors = ButtonDefaults.buttonColors(
+                                                            disabledContainerColor = Color(0xFF11141A)
+                                                        ),
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    ) {
+                                                        Text("البوابة مغلقة (انتهى وقت التطهير)", color = SoloMutedText, fontSize = 11.sp)
+                                                    }
+                                                }
+                                                else -> {
+                                                    val canEnter = remainingGateEnergy > 0 || gate.isEntered
+                                                    Button(
+                                                        onClick = {
+                                                            if (gate.isEntered) {
+                                                                activeBattleGate = gate
+                                                            } else {
+                                                                viewModel.enterGate(gate)
+                                                                activeBattleGate = gate
+                                                            }
+                                                        },
+                                                        enabled = canEnter,
+                                                        colors = ButtonDefaults.buttonColors(
+                                                            containerColor = if (gate.isEntered) Color(0xFF991B1B) else gateColor,
+                                                            contentColor = Color.White
+                                                        ),
+                                                        modifier = Modifier.fillMaxWidth().testTag("enter_button_${gate.id}")
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = if (gate.isEntered) Icons.Default.PlayArrow else Icons.Default.Login,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(6.dp))
+                                                        Text(
+                                                            text = if (gate.isEntered) "متابعة قتال البوابة" else "دخول البوابة (طاقة 1-)",
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                    }
+                                                }
+                                            }
                                         }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = moodColor),
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Icon(imageVector = Icons.Default.Cyclone, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("STRIKE BLADE ⚔️ (دمج $strikePower)", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
-                            
-                            Text(
-                                text = "قوة الهجوم ترتكز على إحصائيات القوة (STR) والرشاقة (AGI) في حوزتك.",
-                                color = SoloMutedText,
-                                fontSize = 10.sp,
-                                fontStyle = FontStyle.Normal,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                        }
+                    } else {
+                        // SIDE QUESTS list
+                        if (sideQuestsList.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 40.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("لا توجد مهام جانبية نشطة حالياً", color = SoloMutedText, fontSize = 14.sp)
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Button(
+                                        onClick = { viewModel.resetDaily() },
+                                        colors = ButtonDefaults.buttonColors(containerColor = SoloPrimaryCyan)
+                                    ) {
+                                        Text("توليد مهام جانبية", color = Color.Black, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxWidth().heightIn(max = 600.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                contentPadding = PaddingValues(bottom = 80.dp)
+                            ) {
+                                items(sideQuestsList) { quest ->
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = SoloCardBg),
+                                        border = BorderStroke(1.dp, if (quest.isCompleted) Color(0xFF10B981) else SoloBorderSlate),
+                                        modifier = Modifier.fillMaxWidth().testTag("side_quest_${quest.id}")
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(14.dp),
+                                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = quest.name,
+                                                    color = Color.White,
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                
+                                                if (quest.isCompleted) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(6.dp))
+                                                            .background(Color(0xFF10B981).copy(alpha = 0.15f))
+                                                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                                                    ) {
+                                                        Text("مكتملة ✓", color = Color(0xFF10B981), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                } else {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(6.dp))
+                                                            .background(SoloGold.copy(alpha = 0.15f))
+                                                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                                                    ) {
+                                                        Text("جارية", color = SoloGold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+                                            }
+
+                                            Text(
+                                                text = quest.description,
+                                                color = SoloMutedText,
+                                                fontSize = 12.sp
+                                            )
+
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = "المطلوب: ${quest.targetReps} ${quest.unit} من (${quest.exerciseType})",
+                                                color = SoloPrimaryCyan,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                // Rewards list
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = "⭐ ${quest.xpReward} XP",
+                                                        color = Color(0xFFA55EFF),
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(
+                                                        text = "🪙 ${quest.goldReward}G",
+                                                        color = SoloGold,
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(
+                                                        text = "⚡ ${quest.apReward} AP",
+                                                        color = SoloPrimaryCyan,
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+
+                                                if (!quest.isCompleted) {
+                                                    Button(
+                                                        onClick = { viewModel.completeSideQuest(quest) },
+                                                        colors = ButtonDefaults.buttonColors(containerColor = SoloPrimaryCyan),
+                                                        modifier = Modifier.testTag("complete_quest_${quest.id}")
+                                                    ) {
+                                                        Text("إنجاز", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1305,6 +1571,389 @@ fun SensorCalibrationConsoleDialog(
                                 letterSpacing = 1.sp
                             )
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fun getGateRankColor(rank: String): Color {
+    return when (rank.uppercase()) {
+        "E" -> Color(0xFF94A3B8) // Slate
+        "D" -> Color(0xFF4ADE80) // Green
+        "C" -> Color(0xFF60A5FA) // Blue
+        "B" -> Color(0xFFA78BFA) // Purple
+        "A" -> Color(0xFFFBBF24) // Gold/Yellow
+        "S" -> Color(0xFFF87171) // Red
+        "SS" -> Color(0xFFEC4899) // Pink
+        "SSS" -> Color(0xFFEF4444) // Deep Crimson
+        else -> Color(0xFFA55EFF) // Mythic Purple
+    }
+}
+
+@Composable
+fun GateBattleScreen(
+    gate: Gate,
+    viewModel: VesselViewModel,
+    onClose: () -> Unit
+) {
+    // 100% Back navigation blocking! No retreat
+    BackHandler(enabled = true) {
+        // Blocks system back press to satisfy the "لا تراجع" specification
+    }
+
+    var currentProgress by remember { mutableStateOf(0) }
+    var tickingTime by remember { mutableStateOf(System.currentTimeMillis()) }
+    var simulatedRepTrackerOpen by remember { mutableStateOf(false) }
+    
+    // Timer seconds left calculation
+    val appearanceAge = System.currentTimeMillis() - gate.appearanceTime
+    val remainingSecondsLeft = ((gate.timeLimitMinutes * 60) - (appearanceAge / 1000)).coerceAtLeast(0)
+    var timerSecondsLeft by remember { mutableStateOf(remainingSecondsLeft.toInt()) }
+    
+    LaunchedEffect(key1 = true) {
+        while (timerSecondsLeft > 0 && !gate.isCompleted && currentProgress < gate.challengeReps) {
+            delay(1000)
+            timerSecondsLeft--
+        }
+    }
+
+    val isFailure = timerSecondsLeft <= 0 && currentProgress < gate.challengeReps
+    val isVictory = currentProgress >= gate.challengeReps && !isFailure
+
+    // Slowly writes dialogue character by character
+    var typedDialogue by remember { mutableStateOf("") }
+    LaunchedEffect(key1 = gate.guardianDialogue) {
+        typedDialogue = ""
+        for (char in gate.guardianDialogue) {
+            typedDialogue += char
+            delay(50)
+        }
+    }
+
+    val haptic = LocalHapticFeedback.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF030712)) // Deep space slate dark
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "بوابة تَطْهير نَشِطة",
+                color = Color.Red,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 2.sp
+            )
+            
+            val mm = timerSecondsLeft / 60
+            val ss = timerSecondsLeft % 60
+            Text(
+                text = String.format("تِلْقاء الإغلاق: %02d:%02d", mm, ss),
+                color = if (timerSecondsLeft < 60) Color.Red else SoloGold,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Guardian details card
+        Card(
+            colors = CardDefaults.cardColors(containerColor = SoloCardBg),
+            border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.5f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = gate.guardianName,
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Black
+                )
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black.copy(alpha = 0.4f))
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        text = "\" $typedDialogue \"",
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontSize = 14.sp,
+                        fontStyle = FontStyle.Italic,
+                        fontFamily = FontFamily.Monospace,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+
+        // Challenge description and target progress
+        Card(
+            colors = CardDefaults.cardColors(containerColor = SoloCardBg),
+            border = BorderStroke(1.dp, SoloBorderSlate),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "مُهِمّة التَطْهير البَدَنِيّة",
+                    color = SoloMutedText,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+
+                Text(
+                    text = gate.challengeDescription,
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Progress ratio display
+                Text(
+                    text = "$currentProgress / ${gate.challengeReps}",
+                    color = SoloPrimaryCyan,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Black
+                )
+                Text(
+                    text = gate.challengeUnit,
+                    color = SoloMutedText,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                // Visual progress bar
+                val progressPercent = (currentProgress.toFloat() / gate.challengeReps.toFloat()).coerceIn(0f, 1f)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF1E293B))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(progressPercent)
+                            .background(SoloPrimaryCyan)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        // Interactivity states
+        when {
+            isVictory -> {
+                // Victory Section with Animated Cascading Panel
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = SoloCardBg),
+                    border = BorderStroke(2.dp, SoloNeonGreen),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "تَمّ تَطْهير البَوّابة بنَجَاح 🏆",
+                            color = SoloNeonGreen,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                        Text(
+                            text = "لقد هُزم الحارس الضخم وصارت طاقته رهن إشارتك.",
+                            color = SoloMutedText,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            if (gate.weaknessName != null) {
+                                Button(
+                                    onClick = {
+                                        viewModel.completeGate(gate, useWeakness = true)
+                                        onClose()
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = SoloGold),
+                                    modifier = Modifier.weight(1f).testTag("exploit_weakness")
+                                ) {
+                                    Text("نقطة الضعف (+50% جائزة)", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Black)
+                                }
+                            }
+                            
+                            Button(
+                                onClick = {
+                                    viewModel.completeGate(gate, useWeakness = false)
+                                    onClose()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = SoloNeonGreen),
+                                modifier = Modifier.weight(1f).testTag("claim_rewards")
+                            ) {
+                                Text("جمع المكافأة الأساسية", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+            
+            isFailure -> {
+                // Failure Section
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = SoloCardBg),
+                    border = BorderStroke(2.dp, Color.Red),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "فَشِل التَطْهير - لَقَد هَرَب الحارس 💀",
+                            color = Color.Red,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                        Text(
+                            text = "الوقت انتهى وانهار المونارك أمام الحارس.",
+                            color = SoloMutedText,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Button(
+                            onClick = {
+                                viewModel.failGate(gate)
+                                onClose()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                            modifier = Modifier.fillMaxWidth().testTag("failure_exit")
+                        ) {
+                            Text("الخروج الفوري (خصم 50% عقوبة)", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            else -> {
+                // Combat simulation control
+                if (simulatedRepTrackerOpen) {
+                    // Live AEGRIS wireframe coordinate panel
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0B0D15)),
+                        border = BorderStroke(1.5.dp, SoloPrimaryCyan),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("AEGRIS VISION LINK • تتبع الأداء الحركي", color = SoloPrimaryCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                Box(modifier = Modifier.size(8.dp).background(Color.Green, CircleShape))
+                            }
+
+                            // Dynamic Canvas simulation frame
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(130.dp)
+                                    .background(Color.Black)
+                                    .border(BorderStroke(1.dp, Color(0xFF1E293B)), RoundedCornerShape(8.dp))
+                            ) {
+                                androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                                    val w = size.width
+                                    val h = size.height
+                                    val time = System.currentTimeMillis() / 300.0
+                                    val movementOffset = (Math.sin(time) * 15f).toFloat()
+
+                                    // Render Wireframe structure
+                                    drawCircle(SoloPrimaryCyan, radius = 6f, center = androidx.compose.ui.geometry.Offset(w * 0.5f, h * 0.22f + movementOffset))
+                                    drawCircle(SoloPrimaryCyan, radius = 8f, center = androidx.compose.ui.geometry.Offset(w * 0.35f, h * 0.38f + movementOffset))
+                                    drawCircle(SoloPrimaryCyan, radius = 8f, center = androidx.compose.ui.geometry.Offset(w * 0.65f, h * 0.38f + movementOffset))
+                                    drawLine(SoloPrimaryCyan, start = androidx.compose.ui.geometry.Offset(w * 0.35f, h * 0.38f + movementOffset), end = androidx.compose.ui.geometry.Offset(w * 0.65f, h * 0.38f + movementOffset), strokeWidth = 3f)
+
+                                    drawCircle(SoloPrimaryCyan, radius = 7f, center = androidx.compose.ui.geometry.Offset(w * 0.38f, h * 0.65f - movementOffset))
+                                    drawCircle(SoloPrimaryCyan, radius = 7f, center = androidx.compose.ui.geometry.Offset(w * 0.62f, h * 0.65f - movementOffset))
+                                    drawLine(SoloPrimaryCyan, start = androidx.compose.ui.geometry.Offset(w * 0.35f, h * 0.38f + movementOffset), end = androidx.compose.ui.geometry.Offset(w * 0.38f, h * 0.65f - movementOffset), strokeWidth = 3f)
+                                    drawLine(SoloPrimaryCyan, start = androidx.compose.ui.geometry.Offset(w * 0.65f, h * 0.38f + movementOffset), end = androidx.compose.ui.geometry.Offset(w * 0.62f, h * 0.65f - movementOffset), strokeWidth = 3f)
+                                }
+                                Text("CAMERA STREAM SIMULATOR / نشط", color = Color.White.copy(alpha = 0.5f), fontSize = 9.sp, modifier = Modifier.align(Alignment.BottomCenter).padding(6.dp))
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        if (currentProgress < gate.challengeReps) {
+                                            currentProgress++
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = SoloPrimaryCyan),
+                                    modifier = Modifier.weight(1.5f).testTag("trigger_rep")
+                                ) {
+                                    Text("تكرار صحيح +1 ⚔️", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                }
+
+                                Button(
+                                    onClick = { simulatedRepTrackerOpen = false },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("إيقاف", color = Color.White, fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Button(
+                        onClick = { simulatedRepTrackerOpen = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                        modifier = Modifier.fillMaxWidth().height(50.dp).testTag("start_drill_button")
+                    ) {
+                        Text("بَدْء تَتَبُّع تَمْرِين التَطْهير الكَامِل", color = Color.White, fontWeight = FontWeight.Black)
                     }
                 }
             }

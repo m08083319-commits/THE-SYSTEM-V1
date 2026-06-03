@@ -29,24 +29,43 @@ import com.example.data.UserStats
 import com.example.ui.VesselViewModel
 import com.example.ui.theme.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.geometry.*
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.*
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SystemScreen(
     viewModel: VesselViewModel,
     stats: UserStats,
-    onNavigateToRaids: () -> Unit
+    onNavigateToRaids: () -> Unit,
+    onNavigateToTitles: () -> Unit = {}
 ) {
     val isPenaltyActive by viewModel.isPenaltyActive.collectAsState()
-    val fateDrawnToday by viewModel.fateDrawnToday.collectAsState()
-    val fateType by viewModel.fateType.collectAsState()
-    val fateBonus by viewModel.fateBonus.collectAsState()
     val tasks by viewModel.exercises.collectAsState()
+    val aegisCheatAttempts by viewModel.aegisCheatAttempts.collectAsState()
+    val aegisShameLog by viewModel.aegisShameLog.collectAsState()
 
+    var showAegrisLogSheet by remember { mutableStateOf(false) }
     var showQuoteDialog by remember { mutableStateOf(false) }
     var currentQuoteIndex by remember { mutableStateOf(0) }
+    var showDawnScreen by remember { mutableStateOf(false) }
+    val isDawnMissionAvailable by viewModel.isDawnMissionAvailable.collectAsState()
+    val isDawnCompleteToday = stats.lastDawnMissionDate == java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+
+    if (showDawnScreen) {
+        com.example.ui.screens.DawnMissionScreen(
+            viewModel = viewModel,
+            stats = stats,
+            onClose = { showDawnScreen = false }
+        )
+        return
+    }
+
     val quotesList = listOf(
         "كل يوم تمر دون تدريب هو يوم يُضاف لضعفك." to "Every day spent without training is a day added to your weakness.",
         "الضعفاء لا يملكون خيار البحث عن الكرامة." to "The weak have no choice but to search for dignity.",
@@ -55,64 +74,141 @@ fun SystemScreen(
         "الظل ينتظر أمرك، وروح الملك تنبض في عروقك." to "The Shadow awaits your command, and the Monarch's soul pulses in your veins."
     )
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(SoloBackground)
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .testTag("system_screen_container")
     ) {
-        // Top Sync Header Bar
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Lock,
-                    contentDescription = "Vessel Lock",
-                    tint = SoloPrimaryCyan,
-                    modifier = Modifier.size(14.dp)
-                )
-                Text(
-                    text = "VESSEL_ID: ${stats.username}",
-                    color = SoloMutedText,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.5.sp
-                )
-            }
+        // High-performance animated matrix background particle field
+        com.example.ui.widgets.ParticleBackground()
 
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .verticalScroll(rememberScrollState())
+                .testTag("system_screen_container")
+        ) {
+            // Top Sync Header Bar
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .clickable { viewModel.toggleGlobalSync() }
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "GLOBAL_SYNC",
-                    color = if (stats.globalSync) Color.White else SoloMutedText,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.5.sp
-                )
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(if (stats.globalSync) SoloNeonGreen else SoloAccentRed)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = "Vessel Lock",
+                        tint = SoloPrimaryCyan,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = "VESSEL_ID: ${stats.username}",
+                        color = SoloMutedText,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable { viewModel.toggleGlobalSync() }
+                    ) {
+                        Text(
+                            text = "GLOBAL_SYNC",
+                            color = if (stats.globalSync) Color.White else SoloMutedText,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.5.sp
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(if (stats.globalSync) SoloNeonGreen else SoloAccentRed)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { showAegrisLogSheet = true },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Visibility,
+                            contentDescription = "Aegis Eye Logs Inquiry",
+                            tint = SoloGold,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
             }
-        }
 
         Spacer(modifier = Modifier.height(8.dp))
+
+        if (isDawnMissionAvailable) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Brush.horizontalGradient(listOf(Color(0xFF4A3E00), Color(0xFF000000))))
+                    .border(1.dp, Color(0xFFFFD700), RoundedCornerShape(12.dp))
+                    .clickable { showDawnScreen = true }
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text("🌅", fontSize = 24.sp)
+                    Column {
+                        Text(
+                            text = "مهمة الفجر متاحة. الوقت ينفد.",
+                            color = Color(0xFFFFD700),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "انقر للمطالبة بمكافأتك المضاعفة",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+        } else if (isDawnCompleteToday) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF161616))
+                    .border(1.dp, Color(0xFF4DA6FF), RoundedCornerShape(12.dp))
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text("✨", fontSize = 24.sp)
+                    Text(
+                        text = "اكتملت مهمة الفجر بنجاح.",
+                        color = Color(0xFF4DA6FF),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
 
         // Large Premium Rank Status Card
         Box(
@@ -167,19 +263,52 @@ fun SystemScreen(
                             letterSpacing = 1.sp
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(SoloActiveBlue.copy(alpha = 0.15f))
-                                .border(BorderStroke(1.dp, SoloActiveBlue.copy(alpha = 0.4f)), RoundedCornerShape(12.dp))
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "LVL ${stats.level}",
-                                color = SoloPrimaryCyan,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            // Clickable active title badge
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFF1E1430))
+                                    .border(BorderStroke(0.8.dp, SoloPrimaryCyan.copy(alpha = 0.5f)), RoundedCornerShape(8.dp))
+                                    .clickable { onNavigateToTitles() }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = null,
+                                        tint = SoloPrimaryCyan,
+                                        modifier = Modifier.size(10.dp)
+                                    )
+                                    Text(
+                                        text = stats.activeTitle,
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(SoloActiveBlue.copy(alpha = 0.15f))
+                                    .border(BorderStroke(1.dp, SoloActiveBlue.copy(alpha = 0.4f)), RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "LVL ${stats.level}",
+                                    color = SoloPrimaryCyan,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
@@ -508,7 +637,7 @@ fun SystemScreen(
                 }
             }
 
-            // Hearts lives node (click triggers damage/penalty demo)
+            // Hearts lives node (which visually displays hunter health pool)
             Box(
                 modifier = Modifier
                     .weight(1.3f)
@@ -516,7 +645,6 @@ fun SystemScreen(
                     .clip(RoundedCornerShape(24.dp))
                     .background(SoloCardBg)
                     .border(BorderStroke(1.dp, SoloBorderSlate), RoundedCornerShape(24.dp))
-                    .clickable { viewModel.triggerPenaltyIncident() }
                     .padding(12.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -607,7 +735,7 @@ fun SystemScreen(
                         .background(Color(0xFF06070B))
                         .border(BorderStroke(1.dp, eyeColor.copy(alpha = 0.3f)), RoundedCornerShape(16.dp))
                         .clickable {
-                            showQuoteDialog = true
+                            showAegrisLogSheet = true
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -714,160 +842,18 @@ fun SystemScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
-            }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // THE WEAVE / FATE CARDS BOARD (خيوط القدر)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .background(SoloCardBg)
-                .border(BorderStroke(1.dp, SoloBorderSlate), RoundedCornerShape(24.dp))
-                .padding(16.dp)
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "THE WEAVE OF DESTINY",
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.5.sp
-                        )
-                        Text(
-                            text = "خيوط القدر والنسيج اليومي",
-                            color = SoloMutedText,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Default.Cyclone,
-                        contentDescription = "fate",
-                        tint = Color(0xFFA55EFF),
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-
-                if (!fateDrawnToday) {
-                    Text(
-                        text = "اسحب خيطاً من خيوط القدر لتحديد بركاتك أو لعناتك اليومية:",
-                        color = SoloMutedText,
-                        fontSize = 12.sp,
-                        textAlign = TextAlign.Start,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Golden Thread Card
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(60.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(SoloCardBg)
-                                .border(BorderStroke(1.dp, SoloGold.copy(alpha = 0.4f)), RoundedCornerShape(12.dp))
-                                .clickable { viewModel.drawFateThread("GOLD") }
-                                .padding(8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(text = "👑", fontSize = 16.sp)
-                                Text(text = "مجد/GOLD", color = SoloGold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        // Silver Thread Card
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(60.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(SoloCardBg)
-                                .border(BorderStroke(1.dp, SoloPrimaryCyan.copy(alpha = 0.4f)), RoundedCornerShape(12.dp))
-                                .clickable { viewModel.drawFateThread("SILVER") }
-                                .padding(8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(text = "✨", fontSize = 16.sp)
-                                Text(text = "غموض/SILVER", color = SoloPrimaryCyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        // Black Cursed Thread Card
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(60.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(SoloCardBg)
-                                .border(BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.4f)), RoundedCornerShape(12.dp))
-                                .clickable { viewModel.drawFateThread("BLACK") }
-                                .padding(8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(text = "💀", fontSize = 16.sp)
-                                Text(text = "لعنة/BLACK", color = Color(0xFFEF4444), fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                } else {
-                    // Fate Drawn screen
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFF0D0F16))
-                            .border(BorderStroke(1.dp, Color(0xFFA55EFF)), RoundedCornerShape(12.dp))
-                            .padding(12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        val colorText = when(fateType) {
-                            "GOLD" -> "خيط المجد الذهبي"
-                            "SILVER" -> "الخيط الفضي الغامض"
-                            else -> "الخيط الأسود الملعون"
-                        }
-                        val tint = when(fateType) {
-                            "GOLD" -> SoloGold
-                            "SILVER" -> SoloPrimaryCyan
-                            else -> Color(0xFFEF4444)
-                        }
-
-                        Text(
-                            text = "تم جلب القدر: $colorText",
-                            color = tint,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "التأثير: $fateBonus",
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-
-                        TextButton(
-                            onClick = { viewModel.resetFateDrawn() }
-                        ) {
-                            Text("إعادة تسيير النسيج 🌀", color = SoloMutedText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
+                if (stats.currentFateCardId != null) {
+                    val activeCard = com.example.data.FateCardsDataSource.allCards.find { it.id == stats.currentFateCardId }
+                    if (activeCard != null) {
+                        ActiveFateCardWidget(card = activeCard)
                     }
                 }
             }
         }
+
+        // (Old fate weave logic removed)
+
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -882,6 +868,167 @@ fun SystemScreen(
             Icon(imageVector = Icons.Default.Warning, contentDescription = null, tint = SoloAccentRed, modifier = Modifier.size(16.dp))
             Spacer(modifier = Modifier.width(6.dp))
             Text("مواجهة حارس الجزاء (دخول شاشة العقاب) 👹", color = SoloAccentRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- AEGIS SMART VERIFICATION LOG PANEL ---
+        Card(
+            colors = CardDefaults.cardColors(containerColor = SoloCardBg),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(BorderStroke(1.dp, SoloBorderSlate), RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Visibility,
+                            contentDescription = "Aegis Monitor",
+                            tint = if (aegisCheatAttempts > 0) Color(0xFFFF0044) else SoloPrimaryCyan,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = "شبكة عين أغريس الحارسة",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Surface(
+                        color = if (aegisCheatAttempts > 0) Color(0xFF3B0B14) else Color(0xFF0F1A24),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = "شبهات: $aegisCheatAttempts",
+                            color = if (aegisCheatAttempts > 0) Color(0xFFFF0044) else SoloPrimaryCyan,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Text(
+                    text = "سجل التحقق من سلامة الأنباض والتمارين لكشف الغش وحماية تماسك الوعاء الفرعي:",
+                    color = SoloMutedText,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                if (aegisShameLog.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF0C0E14), RoundedCornerShape(8.dp))
+                            .padding(14.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "✨ لم يتم تسجيل أي خروقات سلوكية! الوعاء نقي بالكامل.",
+                            color = Color(0xFF00FFCC),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        aegisShameLog.forEach { record ->
+                            val readableTime = java.text.SimpleDateFormat(
+                                "HH:mm:ss", java.util.Locale.getDefault()
+                            ).format(java.util.Date(record.timestamp))
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFF13090F), RoundedCornerShape(8.dp))
+                                    .border(BorderStroke(0.5.dp, Color(0x33FF0044)), RoundedCornerShape(8.dp))
+                                    .padding(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "التمرين: ${record.exerciseType.uppercase()}",
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = readableTime,
+                                        color = SoloMutedText,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "طريقة التلاعب: ${record.cheatMethod}",
+                                    color = Color(0xFFFFCCDD),
+                                    fontSize = 11.sp
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "الجزاء: ${record.penaltyApplied}",
+                                    color = Color(0xFFFF0044),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Action to clear cheat reports and reset behaviour
+                Button(
+                    onClick = { viewModel.resetCheatAttemptsIfClean() },
+                    enabled = aegisCheatAttempts > 0,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = SoloPrimaryCyan.copy(alpha = 0.15f),
+                        disabledContainerColor = Color(0xFF161B22)
+                    ),
+                    border = BorderStroke(
+                        1.dp,
+                        if (aegisCheatAttempts > 0) SoloPrimaryCyan else Color(0xFF30363D)
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Reset warning log",
+                        tint = if (aegisCheatAttempts > 0) SoloPrimaryCyan else SoloMutedText,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "طلب تصفير سجل السلوك النظيف",
+                        color = if (aegisCheatAttempts > 0) SoloPrimaryCyan else SoloMutedText,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.weight(1f))
@@ -911,11 +1058,138 @@ fun SystemScreen(
                 letterSpacing = 1.sp
             )
         }
+    } // Column end
+} // Box end
+
+    if (showAegrisLogSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showAegrisLogSheet = false },
+            containerColor = Color(0xFF0F0813),
+            contentColor = Color.White
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+                    .navigationBarsPadding(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Visibility,
+                            contentDescription = "Aegis Eye",
+                            tint = SoloGold,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Text(
+                            text = "سجل رقابة عين أغريس / AEGIS LOG",
+                            color = SoloGold,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    
+                    Text(
+                        text = "إنذارات: ${aegisCheatAttempts}",
+                        color = if (aegisCheatAttempts > 0) SoloAccentRed else SoloPrimaryCyan,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+                
+                Divider(color = SoloBorderSlate)
+                
+                if (aegisShameLog.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 36.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "✨ لم يتم تسجيل أي تجاوزات أو غش! أنت تتبع المسار النبيل.",
+                            color = SoloNeonGreen,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)
+                    ) {
+                        items(aegisShameLog) { record ->
+                            val readableTime = java.text.SimpleDateFormat(
+                                "yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()
+                            ).format(java.util.Date(record.timestamp))
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFF16101D), RoundedCornerShape(12.dp))
+                                    .border(BorderStroke(1.dp, SoloBorderSlate), RoundedCornerShape(12.dp))
+                                    .padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "تمرين: ${record.exerciseType.uppercase()}",
+                                        color = Color.White,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = readableTime,
+                                        color = SoloMutedText,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                                Text(
+                                    text = "طريقة الكشف: ${record.cheatMethod}",
+                                    color = Color(0xFFE9D5FF),
+                                    fontSize = 12.sp
+                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = "Penalty",
+                                        tint = SoloAccentRed,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Text(
+                                        text = "الجزاء: ${record.penaltyApplied}",
+                                        color = SoloAccentRed,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
     }
 
     // Modal dialogue showing quotation details when eye clicked
     if (showQuoteDialog) {
-        val tasks by viewModel.exercises.collectAsState()
         val completedCount = tasks.count { it.isCompleted }
         
         val eyeState = when {
@@ -996,5 +1270,79 @@ fun SystemScreen(
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier.border(BorderStroke(1.dp, eyeColorCustom), RoundedCornerShape(16.dp))
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ActiveFateCardWidget(card: com.example.data.FateCard, modifier: Modifier = Modifier) {
+    var showSheet by remember { mutableStateOf(false) }
+
+    val categoryColor = when (card.type) {
+        "blessing" -> Color(0xFFFFD700)
+        "neutral" -> Color(0xFFC0C0C0)
+        "curse" -> Color(0xFFFF0044)
+        else -> Color.White
+    }
+
+    Box(
+        modifier = modifier
+            .size(40.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(categoryColor.copy(alpha = 0.2f))
+            .border(BorderStroke(1.dp, categoryColor), RoundedCornerShape(8.dp))
+            .clickable { showSheet = true },
+        contentAlignment = Alignment.Center
+    ) {
+        val icon = when (card.type) {
+            "blessing" -> "✦"
+            "neutral" -> "✧"
+            "curse" -> "☠"
+            else -> "🃏"
+        }
+        Text(text = icon, fontSize = 20.sp, color = categoryColor)
+    }
+
+    if (showSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showSheet = false },
+            containerColor = Color(0xFF161616)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "بطاقة القدر النشطة",
+                    color = categoryColor,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = card.name,
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Black
+                )
+                Text(
+                    text = card.description,
+                    color = Color(0xFFAAAAAA),
+                    fontSize = 14.sp,
+                    fontStyle = FontStyle.Italic,
+                    textAlign = TextAlign.Center
+                )
+                Divider(color = categoryColor.copy(alpha = 0.5f))
+                Text(
+                    text = card.effectDescription,
+                    color = categoryColor,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(30.dp))
+            }
+        }
     }
 }

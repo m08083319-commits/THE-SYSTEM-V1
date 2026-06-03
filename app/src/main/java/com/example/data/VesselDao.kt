@@ -52,4 +52,42 @@ interface VesselDao {
 
     @Update
     suspend fun updateShadow(shadow: ShadowSoldier)
+
+    // Gates
+    @Query("SELECT * FROM gates")
+    fun getAllGates(): Flow<List<Gate>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertGates(gates: List<Gate>)
+
+    @Update
+    suspend fun updateGate(gate: Gate)
+
+    @Query("DELETE FROM gates")
+    suspend fun clearGates()
+
+    // Side Quests
+    @Query("SELECT * FROM side_quests")
+    fun getAllSideQuests(): Flow<List<SideQuest>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSideQuests(quests: List<SideQuest>)
+
+    @Update
+    suspend fun updateSideQuest(quest: SideQuest)
+
+    @Query("DELETE FROM side_quests")
+    suspend fun clearSideQuests()
+
+    @Query("SELECT * FROM daily_journal WHERE id = :dateId")
+    suspend fun getJournalEntry(dateId: String): DailyJournalEntry?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertJournalEntry(entry: DailyJournalEntry)
+
+    @Query("SELECT * FROM daily_journal ORDER BY dateMillis DESC LIMIT 30")
+    fun getRecentJournalEntriesFlow(): Flow<List<DailyJournalEntry>>
+
+    @Query("SELECT * FROM daily_journal ORDER BY dateMillis DESC LIMIT 14")
+    suspend fun getLast14JournalEntries(): List<DailyJournalEntry>
 }
