@@ -119,6 +119,7 @@ class VesselViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             while (true) {
                 checkDawnMissionStatus()
+                checkJudgmentDay()
                 kotlinx.coroutines.delay(60000) // check every minute
             }
         }
@@ -138,6 +139,15 @@ class VesselViewModel(application: Application) : AndroidViewModel(application) 
     val dungeonBossHp = MutableStateFlow(100)
     val dungeonBossMaxHp = MutableStateFlow(100)
 
+    // ===== JUDGMENT ENGINE =====
+    val judgmentScore = MutableStateFlow(0)
+    val judgmentVerdict = MutableStateFlow("")
+    val judgmentBodyChange = MutableStateFlow(0.0)
+    val judgmentMindChange = MutableStateFlow(0.0)
+    val judgmentDisciplineChange = MutableStateFlow(0.0)
+    val showJudgmentScreen = MutableStateFlow(false)
+    private var hasJudgedToday = false
+    
     // ===== NEW SYSTEM LOCKDOWN / PENALTY ENGINE =====
     val activePenalty = MutableStateFlow<com.example.data.Penalty?>(null)
     val shopFreezeUntil = MutableStateFlow<Long?>(null)
@@ -2550,5 +2560,101 @@ class VesselViewModel(application: Application) : AndroidViewModel(application) 
             repository.updateStats(updated)
             repository.addLog("👤 نظام أغريس: تم تسجيل اسم الصياد الجديد بنجاح [$newName]")
         }
+    }
+
+    // ===== JUDGMENT ENGINE LOGIC =====
+    
+    fun checkJudgmentDay() {
+        val calendar = java.util.Calendar.getInstance()
+        if (calendar.get(java.util.Calendar.DAY_OF_WEEK) == java.util.Calendar.SUNDAY && calendar.get(java.util.Calendar.HOUR_OF_DAY) >= 12) {
+            if (!hasJudgedToday) {
+                generateJudgmentReport()
+            }
+        } else {
+            hasJudgedToday = false // Reset for next week
+        }
+    }
+
+    private fun generateJudgmentReport() {
+        viewModelScope.launch {
+            // Simplified logic: compare this week to last week based on stats
+            val stats = userStats.value ?: return@launch
+            
+            var score = 0
+            
+            // 1. Body
+            val currentBody = stats.physicalMissions
+            // Dummy logic representing growth, since we don't have past week snapshots directly
+            val bodyChange = if(currentBody > 0) 5.0 else -2.0 
+            judgmentBodyChange.value = bodyChange
+            if (bodyChange > 0) score += 1
+            if (bodyChange < 0) score -= 1
+            
+            // 2. Mind
+            val currentMind = stats.mentalMissions
+            val mindChange = if(currentMind > 0) 8.0 else -5.0
+            judgmentMindChange.value = mindChange
+            if (mindChange > 0) score += 1
+            if (mindChange < 0) score -= 1
+            
+            // 3. Discipline (Streak)
+            val disciplineChange = if (stats.streak > 3) 10.0 else -15.0
+            judgmentDisciplineChange.value = disciplineChange
+            if (disciplineChange > 0) score += 1
+            if (disciplineChange < 0) score -= 1
+            
+            judgmentScore.value = score
+            
+            judgmentVerdict.value = when {
+                score >= 1 -> "excellent"
+                score <= -1 -> "declining"
+                else -> "stable"
+            }
+            
+            showJudgmentScreen.value = true
+            hasJudgedToday = true
+        }
+    }
+
+    fun applyJudgmentVerdict() {
+        viewModelScope.launch {
+            val verdict = judgmentVerdict.value
+            val stats = userStats.value ?: return@launch
+            
+            if (verdict == "excellent") {
+                // Reward: XP multiplier 1.5x for 48 hours
+                val updatedStats = stats.copy(
+                    hasDoubleXP = true,
+                    doubleXPExpiry = System.currentTimeMillis() + 48L * 3600L * 1000L
+                )
+                repository.updateStats(updatedStats)
+                repository.addLog("🛡️ AGERIS EVENT: judgment_excellent - أنت تتحسن. الأرقام لا تكذب. استمر.")
+            } else if (verdict == "declining") {
+                // Punishment: Enter lockdown for 1 hour
+                repository.addLog("🛡️ AGERIS EVENT: judgment_decline - خزي. هذا كل ما أستطيع قوله. خزي.")
+                triggerJudgmentPunishment(stats.rank)
+            } else {
+                repository.addLog("🛡️ AGERIS EVENT: judgment_stable - أنت ثابت. لم تتراجع. لكن لم تتقدم.")
+            }
+            showJudgmentScreen.value = false
+        }
+    }
+    
+    private fun triggerJudgmentPunishment(rank: String) {
+        // Less harsh than full failure lockdown, 1 hour, 100 burpees, 5km run
+        val penaltyInstance = com.example.data.Penalty(
+            id = "judgment_${System.currentTimeMillis()}",
+            missedMissions = 5,
+            baseBurpees = 100,
+            baseRunningKm = 5.0,
+            basePushups = 0,
+            basePullups = 0,
+            baseSquats = 0,
+            startTime = System.currentTimeMillis(),
+            isCompleted = false,
+            cheatAttempts = 0
+        )
+        activePenalty.value = penaltyInstance
+        enterLockdown()
     }
 }

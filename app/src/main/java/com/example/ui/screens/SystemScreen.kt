@@ -1123,11 +1123,11 @@ fun SystemScreen(
                         )
                     }
                 } else {
-                    LazyColumn(
+                    Column(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        items(aegisShameLog) { record ->
+                        aegisShameLog.forEach { record ->
                             val readableTime = java.text.SimpleDateFormat(
                                 "yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()
                             ).format(java.util.Date(record.timestamp))

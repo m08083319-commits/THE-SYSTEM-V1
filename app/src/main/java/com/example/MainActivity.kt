@@ -58,6 +58,7 @@ fun MainAppLayout() {
     val aegisReps by viewModel.aegisTargetReps.collectAsState()
     val aegisIsShameMode by viewModel.aegisIsShameMode.collectAsState()
     val aegisIsDoubtShadowActive by viewModel.aegisIsDoubtShadowActive.collectAsState()
+    val showJudgmentScreen by viewModel.showJudgmentScreen.collectAsState()
     var currentTab by remember { mutableStateOf("SYSTEM") }
     var showTitlesScreen by remember { mutableStateOf(false) }
     var showLivesStreakScreen by remember { mutableStateOf(false) }
@@ -81,7 +82,7 @@ fun MainAppLayout() {
         modifier = Modifier.fillMaxSize(),
         containerColor = SoloBackground,
         bottomBar = {
-            if (isSetupCompleted && !isPenaltyActive && !showTitlesScreen && !showFateScreen && !showStreakBrokenMenu && !showSystemOverride && !showLivesStreakScreen) {
+            if (isSetupCompleted && !isPenaltyActive && !showJudgmentScreen && !showTitlesScreen && !showFateScreen && !showStreakBrokenMenu && !showSystemOverride && !showLivesStreakScreen) {
                 CustomBottomNavigationBar(
                     currentTab = currentTab,
                     onTabSelected = { currentTab = it },
@@ -95,7 +96,7 @@ fun MainAppLayout() {
             modifier = Modifier
                 .fillMaxSize()
                 .background(SoloBackground)
-                .padding(bottom = if (!isSetupCompleted || isPenaltyActive || showTitlesScreen || showSystemOverride || showStreakBrokenMenu || showLivesStreakScreen) 0.dp else innerPadding.calculateBottomPadding())
+                .padding(bottom = if (!isSetupCompleted || isPenaltyActive || showTitlesScreen || showSystemOverride || showStreakBrokenMenu || showLivesStreakScreen || showJudgmentScreen) 0.dp else innerPadding.calculateBottomPadding())
                 .statusBarsPadding()
         ) {
             val stats = statsState.value
@@ -126,6 +127,11 @@ fun MainAppLayout() {
                 )
             } else if (isPenaltyActive) {
                 PenaltyScreen(viewModel = viewModel)
+            } else if (showJudgmentScreen) {
+                JudgmentScreen(
+                    viewModel = viewModel,
+                    onDismiss = { /* Automatically handled by viewmodel inside the button */ }
+                )
             } else if (showSystemOverride) {
                 com.example.ui.screens.SystemOverrideScreen(viewModel = viewModel)
             } else if (showStreakBrokenMenu) {
